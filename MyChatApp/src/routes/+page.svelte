@@ -11,12 +11,12 @@
       <div class="space-y-4">
         <button 
           class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-500 focus:outline-none"
-          on:click={() => goto('/register')}>
+          on:click={() => goto('/auth/signup')}>
           Register
         </button>
         <button 
           class="w-full bg-gray-600 text-white py-2 rounded-lg hover:bg-gray-500 focus:outline-none"
-          on:click={() => goto('/login')}>
+          on:click={() => goto('/auth/signin')}>
           Login
         </button>
       </div>
