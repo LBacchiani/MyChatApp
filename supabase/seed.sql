@@ -1,6 +1,6 @@
 create table
   public."User" (
-    user_id uuid not null default gen_random_uuid (),
+    user_id uuid not null,
     created_at timestamp with time zone not null default now(),
     username character varying not null,
     email character varying not null,
@@ -25,15 +25,18 @@ create table
     created_at timestamp with time zone not null default now(),
     content text not null,
     chat uuid not null,
+    sender uuid not null,
     constraint Message_pkey primary key (message_id),
-    constraint public_Message_chat_fkey foreign key (chat) references "Chat" (chat_id)
+    constraint public_Message_chat_fkey foreign key (chat) references "Chat" (chat_id),
+    constraint Message_sender_fkey foreign key (sender) references "User" (user_id)
   ) tablespace pg_default;
 
-create policy "Enable insert for users based on user_id" on "public"."User" as permissive for insert to public with check ((( SELECT auth.uid() AS uid) = user_id));
-create policy "Users can read their info" on "public"."User" as permissive for select to public using ((( SELECT auth.uid() AS uid) = user_id));
+create policy "Enable insert for authenticated users only" on "public"."User" as permissive for insert to authenticated with check ( true );
+create policy "Users can read their info" on "public"."User" as permissive for select to authenticated using ((( SELECT auth.uid() AS uid) = user_id));
 
 create policy "Enable insert for authenticated users only" on "public"."Chat" as permissive for insert to authenticated with check (true);
 create policy "Remove participants" on "public"."Chat" as permissive for update to authenticated using ((( SELECT auth.uid() AS uid) = owner_id));
 
 create policy "Read Messages" on "public"."Message" as permissive for select to authenticated using ((EXISTS ( SELECT 1   FROM "Chat"  WHERE (("Chat".chat_id = "Message".chat) AND (auth.uid() = ANY ("Chat".participants))))));
 create policy "Write Message" on "public"."Message" as permissive for insert to authenticated with check ((EXISTS ( SELECT 1   FROM "Chat"  WHERE (auth.uid() = ANY ("Chat".participants)))));
+create policy "Delete Message" on "public"."Message" as permissive for delete to authenticated using (( SELECT auth.uid() AS uid) = sender);
