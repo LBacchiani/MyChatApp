@@ -45,7 +45,7 @@
         <!-- Example Chat -->
         <li class="flex items-center p-2 bg-blue-500 rounded-lg hover:bg-blue-400">
           <img
-            src="https://via.placeholder.com/40"
+            src="../../../user-icon.svg"
             alt="Avatar"
             class="w-10 h-10 rounded-full border border-gray-300 mr-3"
           />
@@ -53,7 +53,7 @@
         </li>
         <li class="flex items-center p-2 bg-blue-500 rounded-lg hover:bg-blue-400">
           <img
-            src="https://via.placeholder.com/40"
+            src="../../../user-icon.svg"
             alt="Avatar"
             class="w-10 h-10 rounded-full border border-gray-300 mr-3"
           />
@@ -61,7 +61,7 @@
         </li>
         <li class="flex items-center p-2 bg-blue-500 rounded-lg hover:bg-blue-400">
           <img
-            src="https://via.placeholder.com/40"
+            src="../../../user-icon.svg"
             alt="Avatar"
             class="w-10 h-10 rounded-full border border-gray-300 mr-3"
           />
@@ -90,7 +90,7 @@
       <div class="flex items-center space-x-4">
         <span class="text-sm text-gray-500">Today's Date: {new Date().toLocaleDateString()}</span>
         <img
-          src="https://via.placeholder.com/40"
+          src="../../../user-icon.svg"
           alt="User Avatar"
           class="w-10 h-10 rounded-full border border-gray-300"
         />
