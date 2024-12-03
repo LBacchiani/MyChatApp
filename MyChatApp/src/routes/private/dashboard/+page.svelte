@@ -1,28 +1,41 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
 
-  async function fetchUsername(user_id: string): Promise<string> {
-    const {data} = await supabase
-        .from('User')
-        .select('username')
-        .eq('user_id', user_id)
-        .single();
-    return data!.username;
+  async function handleKeydown(event: KeyboardEvent): Promise<void> {
+    if (event.key === 'Enter') {
+      event.preventDefault(); 
+      const formData = new FormData();
+      formData.append('username', username2);
+
+      const response = await fetch('?/getUserId', {
+        method: 'POST',
+        body: formData,
+      });
+      console.log(response)
+      const data = await response.json();
+      const user_id = JSON.parse(data.data)[0];
+      if (!user_id) {
+        alert('Username not found');
+        return;
+      }
+      const isDuplicate = reactiveChats.some(item => item.username === username2 && item.user_id === user_id);
+      if (!isDuplicate) {
+        supabase.from('Chat').insert([{participant1: user.user_id, participant2: user_id}]);
+        reactiveChats = [...reactiveChats, {username: username2, user_id: username2}];
+      }
+    }
   }
+
   export let data;
-  let username: string;
-  $: ({ supabase,user } = data);
-  $: (async () => username = await fetchUsername(user.id))();
+  let username2: string;
+  let reactiveChats: any[] = [];
+  $: ({supabase, user, chats} = data);
+  $: reactiveChats = chats;
   $: logout = async () => {
-    const { error } = await supabase.auth.signOut();
+    supabase.auth.signOut();
     goto('/auth/signin')
   };
 
-  function handleKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter') {
-      event.preventDefault(); 
-    }
-  }
 </script>
   
 <div class="flex h-screen bg-gray-100">
@@ -38,38 +51,22 @@
         id="searchInput"
         placeholder="Search users to chat"
         class="w-full p-2 rounded-lg text-gray-700"
+        bind:value={username2}
         on:keydown={handleKeydown}
       />
     </div>
     <nav class="flex-grow overflow-y-auto">
-      <!-- Vertical Carousel for Chats -->
       <ul class="space-y-2 p-4">
-        <!-- Example Chat -->
-        <li class="flex items-center p-2 bg-blue-500 rounded-lg hover:bg-blue-400">
-          <img
-            src="../../../user-icon.svg"
-            alt="Avatar"
-            class="w-10 h-10 rounded-full border border-gray-300 mr-3"
-          />
-          <span class="text-white">Chat with Alice</span>
-        </li>
-        <li class="flex items-center p-2 bg-blue-500 rounded-lg hover:bg-blue-400">
-          <img
-            src="../../../user-icon.svg"
-            alt="Avatar"
-            class="w-10 h-10 rounded-full border border-gray-300 mr-3"
-          />
-          <span class="text-white">Chat with Bob</span>
-        </li>
-        <li class="flex items-center p-2 bg-blue-500 rounded-lg hover:bg-blue-400">
-          <img
-            src="../../../user-icon.svg"
-            alt="Avatar"
-            class="w-10 h-10 rounded-full border border-gray-300 mr-3"
-          />
-          <span class="text-white">Chat with Charlie</span>
-        </li>
-        <!-- Add more chats as needed -->
+        {#each reactiveChats as chat}
+          <li class="flex items-center p-2 bg-blue-500 rounded-lg hover:bg-blue-400">
+            <img
+              src="../../../user-icon.svg" 
+              alt="Avatar"
+              class="w-10 h-10 rounded-full border border-gray-300 mr-3"
+            />
+            <span class="text-white">{chat.username}</span>
+          </li>
+        {/each}
       </ul>
     </nav>
     <div class="border-t border-blue-500 p-4">
@@ -88,7 +85,7 @@
   <!-- Main Content -->
   <main class="flex-grow p-6">
     <header class="flex items-center justify-between bg-white p-4 rounded-lg shadow">
-      <h1 class="text-2xl font-bold text-gray-800">Welcome, {username}!</h1>
+      <h1 class="text-2xl font-bold text-gray-800">Welcome, {user.username}!</h1>
       <div class="flex items-center space-x-4">
         <span class="text-sm text-gray-500">Today's Date: {new Date().toLocaleDateString()}</span>
         <img
