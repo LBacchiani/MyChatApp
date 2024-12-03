@@ -9,20 +9,20 @@
         .single();
     return data!.username;
   }
-
-	export let data;
+  export let data;
   let username: string;
-	$: ({ supabase,user } = data);
-  $: (async () => {
-    username = await fetchUsername(user.id);
-  })();
-	$: logout = async () => {
-		const { error } = await supabase.auth.signOut();
-		if (error) {
-			console.error(error);
-		}
+  $: ({ supabase,user } = data);
+  $: (async () => username = await fetchUsername(user.id))();
+  $: logout = async () => {
+    const { error } = await supabase.auth.signOut();
     goto('/auth/signin')
-	};
+  };
+
+  function handleKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter') {
+      event.preventDefault(); 
+    }
+  }
 </script>
   
 <div class="flex h-screen bg-gray-100">
@@ -35,8 +35,10 @@
       <!-- Search Bar for Users -->
       <input
         type="text"
+        id="searchInput"
         placeholder="Search users to chat"
         class="w-full p-2 rounded-lg text-gray-700"
+        on:keydown={handleKeydown}
       />
     </div>
     <nav class="flex-grow overflow-y-auto">
