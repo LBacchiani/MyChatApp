@@ -1,8 +1,21 @@
-<script>
+<script lang="ts">
   import { goto } from '$app/navigation';
+
+  async function fetchUsername(user_id: string) {
+    return await supabase
+        .from('User')
+        .select('username')
+        .eq('user_id', user_id)
+  }
+
 	export let data;
-  let userName = "John Doe"; 
-	$: ({ supabase } = data);
+  let username: string;
+	$: ({ supabase,user } = data);
+  $: fetchUsername(user.id).then(response => username = response.data![0].username);
+  
+
+
+
 
 	$: logout = async () => {
 		const { error } = await supabase.auth.signOut();
@@ -59,7 +72,7 @@
     <!-- Main Content -->
     <main class="flex-grow p-6">
       <header class="flex items-center justify-between bg-white p-4 rounded-lg shadow">
-        <h1 class="text-2xl font-bold text-gray-800">Welcome, {userName}!</h1>
+        <h1 class="text-2xl font-bold text-gray-800">Welcome, {username}!</h1>
         <div class="flex items-center space-x-4">
           <span class="text-sm text-gray-500">Today's Date: {new Date().toLocaleDateString()}</span>
           <img
