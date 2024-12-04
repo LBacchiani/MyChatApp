@@ -1,6 +1,5 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { json, fail } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async ({locals: { supabase } }) => {
 
@@ -9,29 +8,32 @@ export const load: PageServerLoad = async ({locals: { supabase } }) => {
     if (userError || !authData) redirect(303, '/auth/signin');
 
     const { data: loggedUserData} = await supabase.from('User').select('*').eq('user_id', authData.user.id).single();
+    const { data: chatData} = await supabase.from('Chat').select('id, participant1, participant2, blocked')
+          .or(`participant1.eq.${loggedUserData.user_id},participant2.eq.${loggedUserData.user_id}`);
+    const { data: messageData} = await supabase.from('Message').select('sender, receiver, content, chat_id, created_at')
+          .or(`sender.eq.${loggedUserData.user_id},receiver.eq.${loggedUserData.user_id}`);
 
     const ids = [];
-    const { data: chatData} = await supabase.from('Chat').select('participant1, participant2, blocked')
-          .or(`participant1.eq.${loggedUserData.user_id},participant2.eq.${loggedUserData.user_id}`);
-    
     chatData.forEach(chat => {
         const { participant1, participant2 } = chat;
         if (participant1 === loggedUserData.user_id && participant2 === loggedUserData.user_id) ids.push(participant1);
         else ids.push(participant1 === loggedUserData.user_id ? participant2 : participant1);
     });
-    const { data: usernames} =  await supabase.from('User').select('username, user_id').in('user_id', ids);
+
+    const { data: usernames} = await supabase.from('User').select('username, user_id').in('user_id', ids);
 
     const usernameMap = new Map(usernames.map(user => [user.user_id, user.username]));
     const chats = [];
     if (usernameMap.has(loggedUserData.user_id)) {
-      chats.push({username: loggedUserData.username, blocked: false});
+      const chat = chatData.filter(c => c.participant1 === loggedUserData.user_id && c.participant2 === loggedUserData.user_id)[0];
+      chats.push({username: loggedUserData.username, blocked: false, messages: messageData.filter(d => d.chat_id === chat.id)});
       usernameMap.delete(loggedUserData.user_id);
     }
     for (let chat of chatData) {    
-        if (usernameMap.has(chat.participant1)) chats.push({username: usernameMap.get(chat.participant1), blocked: chat.blocked});
-        else if (usernameMap.has(chat.participant2)) chats.push({username: usernameMap.get(chat.participant2), blocked: chat.blocked});
-    } 
-	return { user: loggedUserData, chats: chats};
+      if (usernameMap.has(chat.participant1)) chats.push({username: usernameMap.get(chat.participant1), blocked: chat.blocked, messages: messageData.filter(d => d.chat_id === chat.id)});
+      else if (usernameMap.has(chat.participant2)) chats.push({username: usernameMap.get(chat.participant2), blocked: chat.blocked, messages: messageData.filter(d => d.chat_id === chat.id)});
+    }
+	  return { user: loggedUserData, chats: chats};
 };
 
 export const actions = {

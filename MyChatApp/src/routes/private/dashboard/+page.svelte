@@ -2,6 +2,11 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
 
+  function formatDate(dateString) {
+    const date = new Date(dateString);
+    return  date.getDate() + "/" + date.getMonth() + "/" + date.getFullYear() + " | " + date.getHours() + ":" + date.getMinutes();
+  }
+
   async function handleKeydown(event: KeyboardEvent): Promise<void> {
     if (event.key === 'Enter') {
       event.preventDefault(); 
@@ -39,21 +44,6 @@
   const selectChat = (chat) => selectedChat = chat;
   $: ({user, chats} = data);
   $: selectedChat = chats[0];
-  onMount(() => {
-    if (chats.length > 0) {
-
-      if (!selectedChat.messages) {
-        selectedChat.messages = [
-          { sender: 'John', text: 'Hello!', time: '10:00 AM' },
-          { sender: user.username, text: 'Hi there! How are you?', time: '10:05 AM' },
-          { sender: 'John', text: 'I\'m doing well, thanks! How about you?', time: '10:10 AM' },
-          { sender: user.username, text: 'I\'m good, just busy with work!', time: '10:15 AM' },
-          { sender: 'John', text: 'I can relate! Let\'s catch up soon.', time: '10:20 AM' }
-        ];
-      }
-    }
-  });
-
 </script>
   
 <div class="flex h-screen bg-gray-100">
@@ -140,11 +130,11 @@
           <div class="flex-grow overflow-y-auto space-y-4">
             <!-- Display Messages -->
             {#each selectedChat.messages as message}
-              <div class="flex {message.sender === user.username ? 'justify-end' : 'justify-start'}">
+              <div class="flex {message.sender === user.user_id ? 'justify-end' : 'justify-start'}">
                 <!-- Message Bubble -->
-                <div class="max-w-xs p-3 rounded-lg {message.sender === user.username ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black'}">
+                <div class="max-w-xs p-3 rounded-lg {message.sender === user.user_id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black'}">
                   <div class="flex items-center space-x-2">
-                    {#if message.sender !== user.username}
+                    {#if message.sender !== user.user_id}
                       <img
                         src="../../../user-icon.svg"
                         alt="User Avatar"
@@ -152,8 +142,8 @@
                       />
                     {/if}
                     <div>
-                      <p class="text-sm">{message.text}</p>
-                      <span class="text-xs {message.sender === user.username ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black'}">{message.time}</span>
+                      <p class="text-sm">{message.content}</p>
+                      <span class="text-xs {message.sender === user.user_id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black'}">{formatDate(message.created_at)}</span>
                     </div>
                   </div>
                 </div>
