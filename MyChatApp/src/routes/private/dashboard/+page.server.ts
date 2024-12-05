@@ -26,13 +26,14 @@ export const load: PageServerLoad = async ({locals: { supabase } }) => {
     const chats = [];
     if (usernameMap.has(loggedUserData.user_id)) {
       const chat = chatData.filter(c => c.participant1 === loggedUserData.user_id && c.participant2 === loggedUserData.user_id)[0];
-      chats.push({username: loggedUserData.username, blocked: false, messages: messageData.filter(d => d.chat_id === chat.id)});
+      chats.push({username: loggedUserData.username, user_id: loggedUserData.user_id, chat_id: chat.id, blocked: false, messages: messageData.filter(d => d.chat_id === chat.id)});
       usernameMap.delete(loggedUserData.user_id);
     }
     for (let chat of chatData) {    
-      if (usernameMap.has(chat.participant1)) chats.push({username: usernameMap.get(chat.participant1), blocked: chat.blocked, messages: messageData.filter(d => d.chat_id === chat.id)});
-      else if (usernameMap.has(chat.participant2)) chats.push({username: usernameMap.get(chat.participant2), blocked: chat.blocked, messages: messageData.filter(d => d.chat_id === chat.id)});
+      if (usernameMap.has(chat.participant1)) chats.push({username: usernameMap.get(chat.participant1), user_id: chat.participant1, chat_id: chat.id, blocked: chat.blocked, messages: messageData.filter(d => d.chat_id === chat.id)});
+      else if (usernameMap.has(chat.participant2)) chats.push({username: usernameMap.get(chat.participant2), user_id: chat.participant1, chat_id: chat.id, blocked: chat.blocked, messages: messageData.filter(d => d.chat_id === chat.id)});
     }
+    console.log(chats[1])
 	  return { user: loggedUserData, chats: chats};
 };
 

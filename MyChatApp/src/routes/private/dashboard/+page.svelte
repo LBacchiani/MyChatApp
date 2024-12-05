@@ -1,10 +1,47 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
-  import { onMount } from 'svelte';
+  const SENDER_SERVICE = import.meta.env.VITE_SENDER_SERVICE;
 
-  function formatDate(dateString) {
+  function formatDate(dateString: string) {
     const date = new Date(dateString);
     return  date.getDate() + "/" + date.getMonth() + "/" + date.getFullYear() + " | " + date.getHours() + ":" + date.getMinutes();
+  }
+
+  async function sendMessage() {
+    if (!newMessage.trim()) return; // Prevent sending empty messages
+
+    const messageData = {
+      sender: user.user_id,
+      receiver: selectedChat.user_id,
+      chat_id: selectedChat.chat_id,
+      content: newMessage,
+    };
+
+    try {
+      const response = await fetch(SENDER_SERVICE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(messageData),
+      });
+
+      console.log(response)
+
+      const result = await response.json();
+
+      if (result.success) {
+        selectedChat.messages = [...selectedChat.messages, { 
+          sender: messageData.sender, 
+          content: messageData.content, 
+          created_at: new Date().toISOString() 
+        }];
+        newMessage = '';
+      } else {
+        alert('Message sending failed');
+      }
+    } catch (error) {
+      alert('Error sending message: ' + error.message);
+    }
   }
 
   async function handleKeydown(event: KeyboardEvent): Promise<void> {
@@ -33,7 +70,7 @@
           method: 'POST',
           body: formData,
         });   
-        chats = [...chats, {username: username2, user_id: user_id}];
+        chats = [...chats, {username: username2, user_id: user_id, blocked: false, messages: []}];
       }
     }
   }
@@ -45,7 +82,7 @@
   $: ({user, chats} = data);
   $: selectedChat = chats[0];
 </script>
-  
+
 <div class="flex h-screen bg-gray-100">
   <!-- Sidebar -->
   <aside class="w-64 bg-blue-600 text-white flex flex-col">
@@ -125,9 +162,9 @@
     <section class="mt-6">
       {#if selectedChat}
         <!-- Conversation Section -->
-        <div class="bg-white p-4 rounded-lg shadow-lg h-160 flex flex-col">
+        <div class="bg-white p-4 rounded-lg shadow-lg flex flex-col">
           <h2 class="text-xl font-bold text-blue-600 mb-4">{selectedChat.username}</h2>
-          <div class="flex-grow overflow-y-auto space-y-4">
+          <div class="flex-grow overflow-y-auto space-y-4" style="max-height: 400px; overflow-y: scroll;">
             <!-- Display Messages -->
             {#each selectedChat.messages as message}
               <div class="flex {message.sender === user.user_id ? 'justify-end' : 'justify-start'}">
@@ -160,6 +197,7 @@
             />
             <button
               class="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-500"
+              on:click={sendMessage}
             >
               Send
             </button>
