@@ -23,7 +23,6 @@ type Message struct {
 	Sender   string `json:"sender"`
 	Receiver string `json:"receiver"`
 	Content  string `json:"content"`
-	ChatID   string `json:"chat_id"`
 }
 
 func connect() (*supabase.Client, *redis.Client) {
