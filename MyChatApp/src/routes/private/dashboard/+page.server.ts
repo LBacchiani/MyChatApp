@@ -8,9 +8,9 @@ export const load: PageServerLoad = async ({locals: { supabase } }) => {
     if (userError || !authData) redirect(303, '/auth/signin');
 
     const { data: loggedUserData} = await supabase.from('User').select('*').eq('user_id', authData.user.id).single();
-    const { data: chatData} = await supabase.from('Chat').select('id, participant1, participant2, blocked')
+    const { data: chatData} = await supabase.from('Chat').select('participant1, participant2, blocked')
           .or(`participant1.eq.${loggedUserData.user_id},participant2.eq.${loggedUserData.user_id}`);
-    const { data: messageData} = await supabase.from('Message').select('sender, receiver, content, chat_id, created_at')
+    const { data: messageData} = await supabase.from('Message').select('sender, receiver, content, created_at')
           .or(`sender.eq.${loggedUserData.user_id},receiver.eq.${loggedUserData.user_id}`);
 
     const ids = [];
@@ -30,10 +30,10 @@ export const load: PageServerLoad = async ({locals: { supabase } }) => {
       usernameMap.delete(loggedUserData.user_id);
     }
     for (let chat of chatData) {    
-      if (usernameMap.has(chat.participant1)) chats.push({username: usernameMap.get(chat.participant1), user_id: chat.participant1, chat_id: chat.id, blocked: chat.blocked, messages: messageData.filter(d => d.chat_id === chat.id)});
-      else if (usernameMap.has(chat.participant2)) chats.push({username: usernameMap.get(chat.participant2), user_id: chat.participant1, chat_id: chat.id, blocked: chat.blocked, messages: messageData.filter(d => d.chat_id === chat.id)});
+      const filteredMessages =  messageData.filter(d => (d.sender === chat.participant1 && d.receiver === chat.participant2) || (d.sender === chat.participant2 && d.receiver === chat.participant1));
+      if (usernameMap.has(chat.participant1)) chats.push({username: usernameMap.get(chat.participant1), user_id: chat.participant1, blocked: chat.blocked, messages: filteredMessages});
+      else if (usernameMap.has(chat.participant2)) chats.push({username: usernameMap.get(chat.participant2), user_id: chat.participant2, blocked: chat.blocked, messages: filteredMessages});
     }
-    console.log(chats[1])
 	  return { user: loggedUserData, chats: chats};
 };
 
@@ -44,14 +44,8 @@ export const actions = {
     if (typeof username !== 'string' || !username.trim()) {
       return null;
     }
-    const { data, error } = await supabase
-      .from('User')
-      .select('user_id')
-      .eq('username', username)
-      .single();
-    if (error || !data) {
-      return null;
-    }
+    const { data, error } = await supabase.from('User').select('user_id').eq('username', username).single();
+    if (error || !data) return null;
     return data.user_id;
   },
 
@@ -59,7 +53,14 @@ export const actions = {
     const formData = await request.formData();
     const p1 = formData.get('participant1') as string;
     const p2 = formData.get('participant2') as string;
-    await supabase.from('Chat').insert([{participant1: p1, participant2: p2}]);
+    const { data, error } = await supabase
+    .from('Chat').select('participant1, participant2')
+    .or(`and(participant1.eq.${p1},participant2.eq.${p2}),` + `and(participant1.eq.${p2},participant2.eq.${p1})`)
+    .single();
+    console.log(data)
+    if (error || !data) {
+      await supabase.from('Chat').insert([{participant1: p1, participant2: p2}]).single();
+    }    
   },
 
   logout: async ({locals: { supabase } }) => {
