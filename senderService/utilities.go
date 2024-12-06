@@ -6,17 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/supabase-community/supabase-go"
-)
-
-const (
-	API_URL    = "https://zmyzypfirdaktluzqrkm.supabase.co"
-	API_KEY    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpteXp5cGZpcmRha3RsdXpxcmttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzI5NjIwODIsImV4cCI6MjA0ODUzODA4Mn0.Y6f1g-xkchpwjWqV1wWCTbOaMSMc9ZNv7cbJem6NSPo"
-	REDIS_URL  = "127.0.0.1"
-	REDIS_PORT = "6379"
 )
 
 type Message struct {
@@ -26,12 +20,12 @@ type Message struct {
 }
 
 func connect() (*supabase.Client, *redis.Client) {
-	client, err := supabase.NewClient(API_URL, API_KEY, &supabase.ClientOptions{})
+	client, err := supabase.NewClient(os.Getenv("API_URL"), os.Getenv("API_KEY"), &supabase.ClientOptions{})
 	if err != nil {
 		fmt.Println("cannot initalize client", err)
 	}
 	redis := redis.NewClient(&redis.Options{
-		Addr: fmt.Sprintf("%s:%s", REDIS_URL, REDIS_PORT),
+		Addr: fmt.Sprintf("%s:%s", os.Getenv("REDIS_URL"), os.Getenv("REDIS_PORT")),
 	})
 	return client, redis
 }
@@ -69,11 +63,14 @@ func pushOnRedis(client *redis.Client, w http.ResponseWriter, msg Message) {
 		http.Error(w, "Error publishing message to Redis", http.StatusInternalServerError)
 		return
 	}
+	success(w, "Message sent successfully")
+}
 
+func success(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated) // Status 201 Created
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
-		"message": "Message sent successfully",
+		"message": message,
 	})
 }

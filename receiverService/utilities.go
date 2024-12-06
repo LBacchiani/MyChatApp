@@ -29,6 +29,10 @@ func connect() *redis.Client {
 func receiveAgent(conn *websocket.Conn, client *redis.Client, id string, ctx context.Context) {
 	fmt.Println("RECEIVE AGENT FOR " + id + "STARTED")
 	channel := client.Subscribe(ctx, id)
+	defer func() {
+		_ = channel.Close()
+		_ = conn.Close()
+	}()
 	for {
 		msg, err := channel.ReceiveMessage(ctx)
 		if err != nil {

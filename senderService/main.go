@@ -1,21 +1,20 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 
+	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
 
 func main() {
 	supabase, redis := connect()
-
-	c := cors.New(cors.Options{
-		AllowedOrigins: []string{"http://localhost:5173"},         // Frontend origin
-		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE"},  // Allowed HTTP methods
-		AllowedHeaders: []string{"Content-Type", "Authorization"}, // Allowed headers
-	})
+	err := godotenv.Load(".env.local")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	http.HandleFunc("/send", func(w http.ResponseWriter, r *http.Request) {
 		msg := processRequest(w, r)
@@ -29,18 +28,18 @@ func main() {
 			pushOnRedis(redis, w, msg)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated) // Status 201 Created
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": true,
-			"message": "Message sent successfully",
-		})
+		success(w, "Message sent successfully")
 	})
 
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"http://localhost:5173"},         // Frontend origin
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE"},  // Allowed HTTP methods
+		AllowedHeaders: []string{"Content-Type", "Authorization"}, // Allowed headers
+	})
 	handlerWithCORS := c.Handler(http.DefaultServeMux)
 
 	fmt.Println("Server is running on http://localhost:80")
-	err := http.ListenAndServe(":80", handlerWithCORS)
+	err = http.ListenAndServe(":80", handlerWithCORS)
 	if err != nil {
 		fmt.Println("Error starting server:", err)
 	}
