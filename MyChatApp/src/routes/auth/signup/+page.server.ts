@@ -9,11 +9,11 @@ export const actions: Actions = {
     const password = formData.get('password') as string
     const username = formData.get('username') as string
 
-    const { data, emailError } = await supabase.auth.signUp({ email, password })
-    const { usernameError } = await supabase.from('User').insert({email: email, username: username, user_id: data.user.id})
-    if (emailError || usernameError) {
-      redirect(303, '/auth/error')
+    const { data, error: emailError } = await supabase.auth.signUp({ email, password })
+    if (emailError) {
+      redirect(303, `/auth/signup?error=${encodeURIComponent('Username already exists')}`)
     } else {
+      await supabase.from('User').insert({email: email, username: username, user_id: data.user?.id})
       redirect(303, '/private/dashboard')
     }
   }

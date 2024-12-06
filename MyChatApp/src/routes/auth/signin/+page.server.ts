@@ -11,7 +11,7 @@ export const actions: Actions = {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       console.error(error)
-      redirect(303, '/auth/error')
+      redirect(303, `/auth/signin?error=${encodeURIComponent('Wrong username or password')}`)
     } else {
       redirect(303, '/private/dashboard')
     }

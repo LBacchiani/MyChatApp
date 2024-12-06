@@ -1,6 +1,17 @@
+<script>
+  import { page } from '$app/stores';
+
+  let errorMessage = '';
+  $: errorMessage = $page.url.searchParams.get('error') || '';
+</script>
 <div class="flex flex-col items-center justify-center h-screen bg-blue-100 p-6">
     <div class="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
       <h1 class="text-4xl font-bold text-blue-600 mb-6">Register for MyChatApp</h1>
+      {#if errorMessage}
+        <div class="bg-red-100 text-red-700 p-4 rounded-lg mb-6">
+          {errorMessage}
+        </div>
+      {/if}
       <form method="POST" action="?/signup" class="space-y-6">
         <div>
           <label for="username" class="block text-left text-lg text-gray-700">Username</label>
