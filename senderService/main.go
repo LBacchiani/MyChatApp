@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -24,8 +25,16 @@ func main() {
 			http.Error(w, "Error sending message: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		pushOnRedis(redis, w, msg)
+		if msg.Receiver != msg.Sender {
+			pushOnRedis(redis, w, msg)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated) // Status 201 Created
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Message sent successfully",
+		})
 	})
 
 	handlerWithCORS := c.Handler(http.DefaultServeMux)

@@ -55,24 +55,25 @@ func processRequest(w http.ResponseWriter, r *http.Request) Message {
 func pushOnRedis(client *redis.Client, w http.ResponseWriter, msg Message) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	// exists, _ := client.Exists(ctx, msg.Receiver).Result()
-	// if exists == 1 {
+
 	msgJSON, err := json.Marshal(msg)
 	if err != nil {
 		fmt.Println("Error marshaling message:", err)
+		http.Error(w, "Invalid message format", http.StatusBadRequest)
 		return
 	}
-	_, err = client.XAdd(ctx, &redis.XAddArgs{Stream: msg.Receiver, Values: map[string]interface{}{"msg": msgJSON}}).Result()
+
+	err = client.Publish(ctx, msg.Receiver, msgJSON).Err()
 	if err != nil {
-		fmt.Println(err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		fmt.Println("Error publishing to Redis:", err)
+		http.Error(w, "Error publishing message to Redis", http.StatusInternalServerError)
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated) // Status 201 Created
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "Message sent successfully",
 	})
-	// }
 }

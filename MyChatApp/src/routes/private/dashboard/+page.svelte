@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+
   const SENDER_SERVICE = import.meta.env.VITE_SENDER_SERVICE;
   export let data;
 
@@ -6,6 +8,40 @@
     const date = new Date(dateString);
     return  date.getDate() + "/" + date.getMonth() + "/" + date.getFullYear() + " | " + date.getHours() + ":" + date.getMinutes();
   }
+
+  function createSocket(user_id: string): WebSocket {
+    // const RECEIVER_SERVICE = import.meta.env.VITE_RECEIVER_SERVICE;
+
+    console.log("Attempitng to connect..")
+
+    const socket = new WebSocket(`ws://localhost:81/connect?user_id=${user_id}`); //TODO CHANGE HARDCODED IP
+
+    socket.onopen = function(event) {
+        console.log("WebSocket connection established!");
+    };
+
+    socket.onmessage = function(event) {
+      //TODO FIX ME, MISSING AUTOMATIC UPDATE
+        const payload = JSON.parse(event.data).Payload;
+        const message = JSON.parse(payload);
+        const chat = chats.filter(chat => chat.user_id === message.sender)[0];
+        const msg = {sender: message.sender, content: message.content, created_at: new Date().toISOString() };
+        if (chat === selectedChat) currMessages = [...currMessages, msg]
+       // else chat.messages = [...chat.messages, msg]
+        console.log("Received message:", message);
+    };
+
+    socket.onerror = function(event) {
+        console.error("WebSocket error:", event);
+    };
+
+    socket.onclose = function(event) {
+        console.log("WebSocket connection closed:", event);
+    };
+
+    return socket;
+}
+
 
   async function sendMessage() {
     if (!newMessage.trim()) return; // Prevent sending empty messages
@@ -22,7 +58,7 @@
       const result = await response.json();
 
       if (result.success) {
-        selectedChat.messages = [...selectedChat.messages, { 
+          currMessages = [...currMessages, { 
           sender: user.user_id,
           content: newMessage,
           created_at: new Date().toISOString() 
@@ -74,17 +110,14 @@
   $: user = data.user;
   $: chats = data.chats;
   $: selectedChat = chats[0];
-  let sidebarOpen: boolean = false;
+  $: currMessages = selectedChat.messages;
+  onMount(() => createSocket(user.user_id))
 </script>
 
 <div class="flex h-screen bg-gray-100">
-  <!-- Sidebar (Mobile) -->
-  <aside
-    class="lg:w-64 w-64 lg:translate-x-0 bg-blue-600 text-white flex flex-col fixed inset-y-0 left-0 transform transition-transform duration-300 ease-in-out"
-    class:translate-x-[-100%]="{!sidebarOpen}"
-    class:translate-x-0="{sidebarOpen}"
-  >
-    <div class="flex items-center justify-center h-16 border-b border-blue-500">
+  <!-- Sidebar -->
+  <aside class="w-64 min-w-[16rem] bg-blue-600 text-white flex flex-col">
+    <div class="flex items-center justify-center h-16 min-h-[4rem] border-b border-blue-500">
       <h2 class="text-2xl font-bold">MyChatApp</h2>
     </div>
     <div class="p-4">
@@ -101,12 +134,14 @@
     <nav class="flex-grow overflow-y-auto">
       <ul class="space-y-2 p-4">
         {#each chats as chat}
-          <button
+          <button 
             class="flex items-center p-2 w-full text-left bg-blue-500 rounded-lg hover:bg-blue-400 cursor-pointer"
             on:click={() => selectChat(chat)}
+            aria-label="Select chat with {chat.username}"
+            aria-pressed={selectedChat === chat ? 'true' : 'false'}
           >
             <img
-              src="../../../user-icon.svg"
+              src="../../../user-icon.svg" 
               alt="Avatar"
               class="w-10 h-10 rounded-full border border-gray-300 mr-3"
             />
@@ -116,28 +151,23 @@
       </ul>
     </nav>
     <div class="border-t border-blue-500 p-4">
-      <button class="w-full bg-gray-700 py-2 px-4 text-white rounded-lg hover:bg-gray-600 mb-2">Settings</button>
+      <button
+        class="w-full bg-gray-700 py-2 px-4 text-white rounded-lg hover:bg-gray-600 mb-2">
+        Settings
+      </button>
       <form method="post" action="?/logout">
+        <input type="hidden" name="user_id" value={user.user_id}>
         <button
           type="submit"
-          class="w-full bg-red-600 py-2 px-4 text-white rounded-lg hover:bg-red-500"
-        >
+          class="w-full bg-red-600 py-2 px-4 text-white rounded-lg hover:bg-red-500">
           Logout
         </button>
       </form>
     </div>
   </aside>
 
-  <!-- Hamburger Menu for Mobile -->
-  <button
-    class="lg:hidden fixed top-4 left-4 z-50 bg-blue-600 text-white p-2 rounded-lg"
-    on:click={() => (sidebarOpen = !sidebarOpen)}
-  >
-    ☰
-  </button>
-
   <!-- Main Content -->
-  <main class="flex-1 flex flex-col h-screen overflow-hidden p-4 lg:p-6 ml-0 lg:ml-64">
+  <main class="flex-1 flex flex-col h-screen overflow-hidden p-4 lg:p-6">
     <header class="flex items-center justify-between bg-white p-4 rounded-lg shadow shrink-0">
       <h1 class="text-xl lg:text-2xl font-bold text-gray-800">Welcome, {user.username}!</h1>
       <div class="flex items-center space-x-4">
@@ -150,22 +180,47 @@
       </div>
     </header>
 
+    <section class="mt-4 lg:mt-6 shrink-0">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+        <!-- Upcoming Meetings Card -->
+        <div class="bg-white p-4 rounded-lg shadow">
+          <h2 class="text-lg lg:text-xl font-bold text-blue-600">Upcoming Meetings</h2>
+          <p class="text-gray-600 mt-2">You have no meetings scheduled for today.</p>
+        </div>
+      </div>
+    </section>
+
     <!-- Chat Conversation Section -->
     <section class="mt-4 lg:mt-6 flex-1 min-h-0 flex flex-col">
       {#if selectedChat}
+        <!-- Conversation Section -->
         <div class="bg-white p-4 rounded-lg shadow-lg flex flex-col h-full">
           <h2 class="text-lg lg:text-xl font-bold text-blue-600 mb-4">{selectedChat.username}</h2>
           <div class="flex-1 min-h-0 overflow-y-auto space-y-4">
-            {#each selectedChat.messages as message}
+            <!-- Display Messages -->
+            {#each currMessages as message}
               <div class="flex {message.sender === user.user_id ? 'justify-end' : 'justify-start'}">
+                <!-- Message Bubble -->
                 <div class="max-w-[75%] p-3 rounded-lg {message.sender === user.user_id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black'}">
-                  <p class="text-sm lg:text-base">{message.content}</p>
-                  <span class="text-xs lg:text-sm {message.sender === user.user_id ? 'text-white/80' : 'text-black/60'}">{formatDate(message.created_at)}</span>
+                  <div class="flex items-center space-x-2">
+                    {#if message.sender !== user.user_id}
+                      <img
+                        src="../../../user-icon.svg"
+                        alt="User Avatar"
+                        class="w-6 h-6 lg:w-8 lg:h-8 rounded-full"
+                      />
+                    {/if}
+                    <div>
+                      <p class="text-sm lg:text-base">{message.content}</p>
+                      <span class="text-xs lg:text-sm {message.sender === user.user_id ? 'text-white/80' : 'text-black/60'}">{formatDate(message.created_at)}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             {/each}
           </div>
-          <div class="mt-4 flex items-center">
+          <!-- Message Input -->
+          <div class="mt-4 flex items-center space-x-2">
             <input
               type="text"
               class="flex-1 p-2 rounded-lg border border-gray-300"
@@ -173,7 +228,7 @@
               bind:value={newMessage}
             />
             <button
-              class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-500 ml-2"
+              class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-500 whitespace-nowrap"
               on:click={sendMessage}
             >
               Send
@@ -181,12 +236,12 @@
           </div>
         </div>
       {:else}
+        <!-- No Chat Selected -->
         <div class="bg-white p-4 rounded-lg shadow h-full flex items-center justify-center">
           <h2 class="text-lg lg:text-xl font-bold text-blue-600">Select a chat to start messaging</h2>
         </div>
       {/if}
     </section>
-
     <footer class="mt-4 lg:mt-6 text-sm text-center text-gray-600 shrink-0">
       <p>&copy; {new Date().getFullYear()} MyChatApp. All Rights Reserved.</p>
     </footer>

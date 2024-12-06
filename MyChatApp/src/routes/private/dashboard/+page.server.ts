@@ -2,7 +2,6 @@ import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({locals: { supabase } }) => {
-
     const { data: authData, error: userError } = await supabase.auth.getUser();
 
     if (userError || !authData) redirect(303, '/auth/signin');
@@ -64,7 +63,21 @@ export const actions = {
     }    
   },
 
-  logout: async ({locals: { supabase } }) => {
-    supabase.auth.signOut();
-  }, 
+  logout: async ({ locals: { supabase }, request }) => {
+    const formData = new URLSearchParams(await request.text());
+    const user_id = formData.get('user_id');
+    const RECEIVER_SERVICE = import.meta.env.VITE_RECEIVER_SERVICE;
+  
+    if (user_id) {
+      await fetch(RECEIVER_SERVICE + "/close", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json',},
+        body: JSON.stringify({user_id: user_id}),
+      });
+      supabase.auth.signOut();
+    } else {
+      console.log('No user_id provided.');
+    }
+  },
+  
 };
