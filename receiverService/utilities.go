@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/websocket"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/supabase-community/supabase-go"
 )
 
 const (
@@ -25,15 +26,12 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func connect() (*supabase.Client, *redis.Client) {
-	client, err := supabase.NewClient(API_URL, API_KEY, &supabase.ClientOptions{})
-	if err != nil {
-		fmt.Println("cannot initalize client", err)
-	}
+func connect() *redis.Client {
+
 	redis := redis.NewClient(&redis.Options{
-		Addr: fmt.Sprintf("%s:%s", REDIS_URL, REDIS_PORT),
+		Addr: fmt.Sprintf("%s:%s", os.Getenv("REDIS_URL"), os.Getenv("REDIS_PORT")),
 	})
-	return client, redis
+	return redis
 }
 
 func receiveAgent(conn *websocket.Conn, client *redis.Client, id string, ctx context.Context) {
@@ -52,5 +50,13 @@ func receiveAgent(conn *websocket.Conn, client *redis.Client, id string, ctx con
 			return
 		}
 	}
+}
 
+func success(w http.ResponseWriter, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated) // Status 201 Created
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": message,
+	})
 }

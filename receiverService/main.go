@@ -7,24 +7,23 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
 
 var mu sync.Mutex
 
 func main() {
-	_, redis := connect()
+	err := godotenv.Load(".env.local")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	redis := connect()
 
 	cancelFuncs := make(map[string]context.CancelFunc)
 
-	c := cors.New(cors.Options{
-		AllowedOrigins: []string{"http://localhost:5173"},         // Frontend origin
-		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE"},  // Allowed HTTP methods
-		AllowedHeaders: []string{"Content-Type", "Authorization"}, // Allowed headers
-	})
-
 	http.HandleFunc("/connect", func(w http.ResponseWriter, r *http.Request) {
-		// First, upgrade the HTTP request to a WebSocket connection
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			fmt.Println("Error upgrading connection:", err)
@@ -32,30 +31,21 @@ func main() {
 			return
 		}
 
-		// Extract the user_id from the query parameters
 		userID := r.URL.Query().Get("user_id")
 		if userID == "" {
 			http.Error(w, "user_id is required", http.StatusBadRequest)
 			return
 		}
 
-		// Create a context and cancel function for the user connection
 		ctx, cancel := context.WithCancel(context.Background())
 
 		mu.Lock()
 		cancelFuncs[userID] = cancel
 		mu.Unlock()
 
-		// Handle the WebSocket connection in a separate goroutine
 		go receiveAgent(conn, redis, userID, ctx)
+		success(w, "Socket created successfully")
 
-		// Respond back with a success message
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated) // Status 201 Created
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": true,
-			"message": "WebSocket connection established successfully",
-		})
 	})
 
 	http.HandleFunc("/close", func(w http.ResponseWriter, r *http.Request) {
@@ -65,7 +55,6 @@ func main() {
 			http.Error(w, "Invalid JSON", http.StatusBadRequest)
 			return
 		}
-		// Access the user_id from the map
 		userID, ok := requestData["user_id"].(string)
 		if !ok {
 			http.Error(w, "user_id is required", http.StatusBadRequest)
@@ -77,20 +66,19 @@ func main() {
 			delete(cancelFuncs, userID)
 		}
 		mu.Unlock()
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated) // Status 201 Created
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": true,
-			"message": "Message sent successfully",
-		})
+		success(w, "Message sent successfully")
 		fmt.Println("Good bye")
 	})
 
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"http://localhost:5173"},         // Frontend origin
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE"},  // Allowed HTTP methods
+		AllowedHeaders: []string{"Content-Type", "Authorization"}, // Allowed headers
+	})
 	handlerWithCORS := c.Handler(http.DefaultServeMux)
 
 	fmt.Println("Server is running on http://localhost:81")
-	err := http.ListenAndServe(":81", handlerWithCORS)
+	err = http.ListenAndServe(":81", handlerWithCORS)
 	if err != nil {
 		fmt.Println("Error starting server:", err)
 	}
