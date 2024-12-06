@@ -25,8 +25,9 @@ export const load: PageServerLoad = async ({locals: { supabase } }) => {
     const usernameMap = new Map(usernames.map(user => [user.user_id, user.username]));
     const chats = [];
     if (usernameMap.has(loggedUserData.user_id)) {
+      const filteredMessages =  messageData.filter(d => (d.sender === loggedUserData.user_id && d.receiver === loggedUserData.user_id));
       const chat = chatData.filter(c => c.participant1 === loggedUserData.user_id && c.participant2 === loggedUserData.user_id)[0];
-      chats.push({username: loggedUserData.username, user_id: loggedUserData.user_id, chat_id: chat.id, blocked: false, messages: messageData.filter(d => d.chat_id === chat.id)});
+      chats.push({username: loggedUserData.username, user_id: loggedUserData.user_id, chat_id: chat.id, blocked: false, messages: filteredMessages});
       usernameMap.delete(loggedUserData.user_id);
     }
     for (let chat of chatData) {    
