@@ -36,14 +36,15 @@ func main() {
 			http.Error(w, "user_id is required", http.StatusBadRequest)
 			return
 		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-
 		mu.Lock()
+		ctx, cancel := context.WithCancel(context.Background())
+		if cancelFunc, exists := cancelFuncs[userID]; exists {
+			cancelFunc()
+			delete(cancelFuncs, userID)
+		}
 		cancelFuncs[userID] = cancel
-		mu.Unlock()
-
 		go receiveAgent(conn, redis, userID, ctx)
+		mu.Unlock()
 		success(w, "Socket created successfully")
 
 	})
@@ -71,14 +72,14 @@ func main() {
 	})
 
 	c := cors.New(cors.Options{
-		AllowedOrigins: []string{"http://localhost:5173"},         // Frontend origin
+		AllowedOrigins: []string{"*"},                             // Frontend origin
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE"},  // Allowed HTTP methods
 		AllowedHeaders: []string{"Content-Type", "Authorization"}, // Allowed headers
 	})
 	handlerWithCORS := c.Handler(http.DefaultServeMux)
 
 	fmt.Println("Server is running on http://localhost:81")
-	err = http.ListenAndServe(":81", handlerWithCORS)
+	err = http.ListenAndServe("0.0.0.0:81", handlerWithCORS)
 	if err != nil {
 		fmt.Println("Error starting server:", err)
 	}

@@ -12,7 +12,7 @@ export const load: PageServerLoad = async ({locals: { supabase } }) => {
     const { data: loggedUserData} = await supabase.from('User').select('*').eq('user_id', authData.user.id).single();
     const { data: chatData} = await supabase.from('Chat').select('participant1, participant2, blocked')
           .or(`participant1.eq.${loggedUserData.user_id},participant2.eq.${loggedUserData.user_id}`);
-    const { data: messageData} = await supabase.from('Message').select('sender, receiver, content, created_at')
+    const { data: messageData} = await supabase.from('Message').select('sender, receiver, content, created_at, isRead')
           .or(`sender.eq.${loggedUserData.user_id},receiver.eq.${loggedUserData.user_id}`);
 
     const ids = [];

@@ -5,12 +5,12 @@
   $: errorMessage = $page.url.searchParams.get('error') || '';
 </script>
 
-<div class="flex flex-col items-center justify-center h-screen bg-blue-100 p-6">
+<div class="flex flex-col items-center justify-center h-screen bg-[#E5F9F2] p-6">
   <div class="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
-    <h1 class="text-4xl font-bold text-blue-600 mb-6">Login to MyChatApp</h1>
+    <h1 class="text-4xl font-bold text-[#25d366] mb-6">Login to MyChatApp</h1>
 
     {#if errorMessage}
-      <div class="bg-red-100 text-red-700 p-4 rounded-lg mb-6">
+      <div class="bg-[#ffefee] text-[#e60000] p-4 rounded-lg mb-6">
         {errorMessage}
       </div>
     {/if}
@@ -23,7 +23,7 @@
           name="email"
           type="text"
           required
-          class="w-full p-3 mt-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          class="w-full p-3 mt-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#25d366]"
         />
       </div>
       <div>
@@ -33,18 +33,18 @@
           name="password"
           type="password"
           required
-          class="w-full p-3 mt-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          class="w-full p-3 mt-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#25d366]"
         />
       </div>
 
       <div class="space-y-4">
         <button 
           type="submit"
-          class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-500 focus:outline-none">
+          class="w-full bg-[#25d366] text-white py-2 rounded-lg hover:bg-[#128C7E] focus:outline-none">
           Login
         </button>
         <p class="text-sm text-gray-500">
-          Don't have an account? <a href="/auth/signup" class="text-blue-600 hover:underline">Register</a>
+          Don't have an account? <a href="/auth/signup" class="text-[#25d366] hover:underline">Register</a>
         </p>
       </div>
     </form>

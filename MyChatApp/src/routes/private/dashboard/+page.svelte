@@ -18,8 +18,12 @@
         const payload = JSON.parse(event.data).Payload;
         const message = JSON.parse(payload);
         const chat = chats.filter(chat => chat.user_id === message.sender)[0];
-        const msg = { sender: message.sender, content: message.content, created_at: new Date().toISOString() };
-        if (chat === selectedChat) currMessages = [...currMessages, msg]
+        const msg = { sender: message.sender, content: message.content, created_at: new Date().toISOString(), isRead: false };
+        chat.messages = [...chat.messages, msg];
+        if (chat === selectedChat) {
+          msg.isRead = true
+          currMessages = [...currMessages, msg]
+        }
     };
 
     socket.onerror = async function(event) {
@@ -33,17 +37,16 @@
 
   async function sendMessage() {
     if (!newMessage.trim()) return; // Prevent sending empty messages
-
     try {
       const response = await fetch(PROTOCOL + SENDER_SERVICE, {
         method: 'POST', headers: {'Content-Type': 'application/json',},
-        body: JSON.stringify({sender: user.user_id, receiver: selectedChat.user_id, content: newMessage }),
+        body: JSON.stringify({sender: user.user_id, receiver: selectedChat.user_id, content: newMessage, isRead: user.user_id === selectedChat.user_id}),
       });
 
       const result = await response.json();
 
       if (result.success) {
-        currMessages = [...currMessages, { sender: user.user_id, content: newMessage, created_at: new Date().toISOString() }];
+        currMessages = [...currMessages, { sender: user.user_id, content: newMessage, created_at: new Date().toISOString(), isRead:  user.user_id === selectedChat.user_id}];
         newMessage = '';
       } else {
         alert('Message sending failed');
@@ -104,68 +107,68 @@
 <div class="flex h-screen bg-gray-100">
   <!-- Sidebar -->
   <aside
-  class="lg:w-64 min-w-[16rem] bg-blue-600 text-white flex flex-col fixed inset-y-0 left-0 transform transition-transform duration-300 ease-in-out"
-  class:translate-x-[-100%]={!sidebarOpen}
->
-  <div class="flex items-center justify-between p-4 border-b border-blue-500">
-    <h2 class="text-2xl font-bold">MyChatApp</h2>
-  </div>
-  <div class="p-4">
-    <!-- Search Bar for Users -->
-    <input
-      type="text"
-      id="searchInput"
-      placeholder="Search users to chat"
-      class="w-full p-2 rounded-lg text-gray-700"
-      bind:value={username2}
-      on:keydown={handleKeydown}
-    />
-  </div>
-  <nav class="flex-grow overflow-y-auto">
-    <ul class="space-y-2 p-4">
-      {#each chats as chat}
-        <button 
-          class="flex items-center p-2 w-full text-left bg-blue-500 rounded-lg hover:bg-blue-400 cursor-pointer"
-          on:click={() => selectChat(chat)}
-          aria-label="Select chat with {chat.username}"
-          aria-pressed={selectedChat === chat ? 'true' : 'false'}
-        >
-          <img
-            src="../../../user-icon.svg" 
-            alt="Avatar"
-            class="w-10 h-10 rounded-full border border-gray-300 mr-3"
-          />
-          <span class="text-white">{chat.username}</span>
-        </button>
-      {/each}
-    </ul>
-  </nav>
-  <div class="border-t border-blue-500 p-4">
-    <button
-      class="w-full bg-gray-700 py-2 px-4 text-white rounded-lg hover:bg-gray-600 mb-2">
-      Settings
-    </button>
-    <form method="post" action="?/logout">
-      <input type="hidden" name="user_id" value={user.user_id}>
+    class="lg:w-64 min-w-[16rem] bg-[#25d366] text-white flex flex-col fixed inset-y-0 left-0 transform transition-transform duration-300 ease-in-out"
+    class:translate-x-[-100%]={!sidebarOpen}
+  >
+    <div class="flex items-center justify-between p-4 border-b border-[#128C7E]">
+      <h2 class="text-2xl font-bold">MyChatApp</h2>
+    </div>
+    <div class="p-4">
+      <!-- Search Bar for Users -->
+      <input
+        type="text"
+        id="searchInput"
+        placeholder="Search users to chat"
+        class="w-full p-2 rounded-lg text-gray-700"
+        bind:value={username2}
+        on:keydown={handleKeydown}
+      />
+    </div>
+    <nav class="flex-grow overflow-y-auto">
+      <ul class="space-y-2 p-4">
+        {#each chats as chat}
+          <button 
+            class="flex items-center p-2 w-full text-left bg-[rgb(131,248,174)] rounded-lg hover:bg-[#128C7E] cursor-pointer"
+            on:click={() => selectChat(chat)}
+            aria-label="Select chat with {chat.username}"
+            aria-pressed={selectedChat === chat ? 'true' : 'false'}
+          >
+            <img
+              src="../../../user-icon.svg" 
+              alt="Avatar"
+              class="w-10 h-10 rounded-full border border-gray-300 mr-3"
+            />
+            <span class="text-white">{chat.username}</span>
+          </button>
+        {/each}
+      </ul>
+    </nav>
+    <div class="border-t border-[#128C7E] p-4">
       <button
-        type="submit"
-        class="w-full bg-red-600 py-2 px-4 text-white rounded-lg hover:bg-red-500">
-        Logout
+        class="w-full bg-gray-700 py-2 px-4 text-white rounded-lg hover:bg-gray-600 mb-2">
+        Settings
       </button>
-    </form>
-  </div>
-</aside>
+      <form method="post" action="?/logout">
+        <input type="hidden" name="user_id" value={user.user_id}>
+        <button
+          type="submit"
+          class="w-full bg-red-600 py-2 px-4 text-white rounded-lg hover:bg-red-500">
+          Logout
+        </button>
+      </form>
+    </div>
+  </aside>
 
-{#if mobile}
-<button
-class="lg:hidden fixed top-4 left-4 z-50 text-{sidebarOpen ? 'white' : 'blue-500'} text-3xl"
-on:click={() => sidebarOpen = !sidebarOpen}
-aria-label="Toggle sidebar"
->
-<span class="sr-only">Toggle sidebar</span>
-☰
-</button>
-{/if}
+  {#if mobile}
+    <button
+      class="lg:hidden fixed top-4 left-4 z-50 text-{sidebarOpen ? 'white' : 'green-500'} text-3xl"
+      on:click={() => sidebarOpen = !sidebarOpen}
+      aria-label="Toggle sidebar"
+    >
+      <span class="sr-only">Toggle sidebar</span>
+      ☰
+    </button>
+  {/if}
 
   <!-- Main Content -->
   <main class="flex-1 flex flex-col h-screen overflow-hidden p-4 lg:p-6 ml-0 lg:ml-64">
@@ -185,7 +188,7 @@ aria-label="Toggle sidebar"
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
         <!-- Upcoming Meetings Card -->
         <div class="bg-white p-4 rounded-lg shadow">
-          <h2 class="text-lg lg:text-xl font-bold text-blue-600">Upcoming Meetings</h2>
+          <h2 class="text-lg lg:text-xl font-bold text-[#25d366]">Upcoming Meetings</h2>
           <p class="text-gray-600 mt-2">You have no meetings scheduled for today.</p>
         </div>
       </div>
@@ -196,13 +199,13 @@ aria-label="Toggle sidebar"
       {#if selectedChat}
         <!-- Conversation Section -->
         <div class="bg-white p-4 rounded-lg shadow-lg flex flex-col h-full">
-          <h2 class="text-lg lg:text-xl font-bold text-blue-600 mb-4">{selectedChat.username}</h2>
+          <h2 class="text-lg lg:text-xl font-bold text-[#25d366] mb-4">{selectedChat.username}</h2>
           <div class="flex-1 min-h-0 overflow-y-auto space-y-4">
             <!-- Display Messages -->
             {#each currMessages as message}
               <div class="flex {message.sender === user.user_id ? 'justify-end' : 'justify-start'}">
                 <!-- Message Bubble -->
-                <div class="max-w-[75%] p-3 rounded-lg {message.sender === user.user_id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black'}">
+                <div class="max-w-[75%] p-3 rounded-lg {message.sender === user.user_id ? 'bg-[#25d366] text-white' : 'bg-[#E5E5E5] text-black'}">
                   <div class="flex items-center space-x-2">
                     {#if message.sender !== user.user_id}
                       <img
@@ -214,6 +217,23 @@ aria-label="Toggle sidebar"
                     <div>
                       <p class="text-sm lg:text-base">{message.content}</p>
                       <span class="text-xs lg:text-sm {message.sender === user.user_id ? 'text-white/80' : 'text-black/60'}">{formatDate(message.created_at)}</span>
+
+                      <!-- WhatsApp-style tick for read/unread message -->
+                      {#if message.sender === user.user_id}
+                      <div class="flex items-center space-x-1">
+                        {#if message.isRead}
+                          <!-- Display the white tick when message is read (for blue background) -->
+                          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                          </svg>
+                        {:else}
+                          <!-- Display the light gray tick when message is unread -->
+                          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                          </svg>
+                        {/if}
+                      </div>
+                      {/if}
                     </div>
                   </div>
                 </div>
@@ -230,7 +250,7 @@ aria-label="Toggle sidebar"
               on:keydown={(event: KeyboardEvent) => { if (event.key === 'Enter') sendMessage() }}
             />
             <button
-              class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-500 whitespace-nowrap"
+              class="bg-[#25d366] text-white px-4 py-2 rounded-lg hover:bg-[#128C7E] whitespace-nowrap"
               on:click={sendMessage}
             >
               Send
@@ -240,7 +260,7 @@ aria-label="Toggle sidebar"
       {:else}
         <!-- No Chat Selected -->
         <div class="bg-white p-4 rounded-lg shadow h-full flex items-center justify-center">
-          <h2 class="text-lg lg:text-xl font-bold text-blue-600">Select a chat to start messaging</h2>
+          <h2 class="text-lg lg:text-xl font-bold text-[#25d366]">Select a chat to start messaging</h2>
         </div>
       {/if}
     </section>
