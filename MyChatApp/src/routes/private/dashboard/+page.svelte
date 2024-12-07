@@ -1,7 +1,10 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 
   const SENDER_SERVICE = import.meta.env.VITE_SENDER_SERVICE;
+  const RECEIVER_SERVICE = import.meta.env.VITE_RECEIVER_SERVICE;
+  const PROTOCOL = import.meta.env.VITE_PROTOCOL;
   export let data;
 
   function formatDate(dateString: string) {
@@ -10,33 +13,18 @@
   }
 
   function createSocket(user_id: string): WebSocket {
-    // const RECEIVER_SERVICE = import.meta.env.VITE_RECEIVER_SERVICE;
-
-    console.log("Attempitng to connect..")
-
-    const socket = new WebSocket(`ws://localhost:81/connect?user_id=${user_id}`); //TODO CHANGE HARDCODED IP
-
-    socket.onopen = function(event) {
-        console.log("WebSocket connection established!");
-    };
-
+    const socket = new WebSocket(`ws://${RECEIVER_SERVICE}/connect?user_id=${user_id}`); 
     socket.onmessage = function(event) {
-      //TODO FIX ME, MISSING AUTOMATIC UPDATE
         const payload = JSON.parse(event.data).Payload;
         const message = JSON.parse(payload);
         const chat = chats.filter(chat => chat.user_id === message.sender)[0];
-        const msg = {sender: message.sender, content: message.content, created_at: new Date().toISOString() };
+        const msg = { sender: message.sender, content: message.content, created_at: new Date().toISOString() };
         if (chat === selectedChat) currMessages = [...currMessages, msg]
-       // else chat.messages = [...chat.messages, msg]
-        console.log("Received message:", message);
     };
 
-    socket.onerror = function(event) {
-        console.error("WebSocket error:", event);
-    };
-
-    socket.onclose = function(event) {
-        console.log("WebSocket connection closed:", event);
+    socket.onerror = async function(event) {
+        alert("An error occurred...")
+        goto("/private/dashboard/error")
     };
 
     return socket;
@@ -47,22 +35,15 @@
     if (!newMessage.trim()) return; // Prevent sending empty messages
 
     try {
-      const response = await fetch(SENDER_SERVICE, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({sender: user.user_id, receiver: selectedChat.user_id, content: newMessage,}),
+      const response = await fetch(PROTOCOL + SENDER_SERVICE, {
+        method: 'POST', headers: {'Content-Type': 'application/json',},
+        body: JSON.stringify({sender: user.user_id, receiver: selectedChat.user_id, content: newMessage }),
       });
 
       const result = await response.json();
 
       if (result.success) {
-          currMessages = [...currMessages, { 
-          sender: user.user_id,
-          content: newMessage,
-          created_at: new Date().toISOString() 
-        }];
+        currMessages = [...currMessages, { sender: user.user_id, content: newMessage, created_at: new Date().toISOString() }];
         newMessage = '';
       } else {
         alert('Message sending failed');
@@ -77,11 +58,7 @@
       event.preventDefault(); 
       const formData = new FormData();
       formData.append('username', username2);
-
-      const response = await fetch('?/getUserId', {
-        method: 'POST',
-        body: formData,
-      });
+      const response = await fetch('?/getUserId', { method: 'POST', body: formData });
       const data = await response.json();
       const user_id = JSON.parse(data.data)[0];
       if (!user_id) {
@@ -89,7 +66,6 @@
         return;
       }
       const isDuplicate = chats.some(item => item.user_id === user_id);
-      
       if (!isDuplicate) {
         const formData = new FormData();
         formData.append('participant1', user.user_id);
@@ -98,76 +74,97 @@
           method: 'POST',
           body: formData,
         });   
-        const result = await response.json();
+        await response.json();
         chats = [...chats, {username: username2, user_id: user_id, blocked: false, messages: []}];
         username2 = ''
       }
     }
   }
+  //////////////////////////////
   let username2: string;
   let newMessage = '';
+  let sidebarOpen: boolean;
+  let mobile: boolean
   const selectChat = (chat) => selectedChat = chat;
   $: user = data.user;
   $: chats = data.chats;
   $: selectedChat = chats[0];
-  $: currMessages = selectedChat.messages;
-  onMount(() => createSocket(user.user_id))
+  $: currMessages = selectedChat?.messages || [];
+  onMount(() => {
+    mobile = /Mobi|Android|iPhone|iPad|iPod/.test(navigator.userAgent);
+    sidebarOpen = !mobile;
+    createSocket(user.user_id)
+  })
 </script>
 
 <div class="flex h-screen bg-gray-100">
   <!-- Sidebar -->
-  <aside class="w-64 min-w-[16rem] bg-blue-600 text-white flex flex-col">
-    <div class="flex items-center justify-center h-16 min-h-[4rem] border-b border-blue-500">
-      <h2 class="text-2xl font-bold">MyChatApp</h2>
-    </div>
-    <div class="p-4">
-      <!-- Search Bar for Users -->
-      <input
-        type="text"
-        id="searchInput"
-        placeholder="Search users to chat"
-        class="w-full p-2 rounded-lg text-gray-700"
-        bind:value={username2}
-        on:keydown={handleKeydown}
-      />
-    </div>
-    <nav class="flex-grow overflow-y-auto">
-      <ul class="space-y-2 p-4">
-        {#each chats as chat}
-          <button 
-            class="flex items-center p-2 w-full text-left bg-blue-500 rounded-lg hover:bg-blue-400 cursor-pointer"
-            on:click={() => selectChat(chat)}
-            aria-label="Select chat with {chat.username}"
-            aria-pressed={selectedChat === chat ? 'true' : 'false'}
-          >
-            <img
-              src="../../../user-icon.svg" 
-              alt="Avatar"
-              class="w-10 h-10 rounded-full border border-gray-300 mr-3"
-            />
-            <span class="text-white">{chat.username}</span>
-          </button>
-        {/each}
-      </ul>
-    </nav>
-    <div class="border-t border-blue-500 p-4">
-      <button
-        class="w-full bg-gray-700 py-2 px-4 text-white rounded-lg hover:bg-gray-600 mb-2">
-        Settings
-      </button>
-      <form method="post" action="?/logout">
-        <input type="hidden" name="user_id" value={user.user_id}>
-        <button
-          type="submit"
-          class="w-full bg-red-600 py-2 px-4 text-white rounded-lg hover:bg-red-500">
-          Logout
+  <aside
+  class="lg:w-64 min-w-[16rem] bg-blue-600 text-white flex flex-col fixed inset-y-0 left-0 transform transition-transform duration-300 ease-in-out"
+  class:translate-x-[-100%]={!sidebarOpen}
+>
+  <div class="flex items-center justify-between p-4 border-b border-blue-500">
+    <h2 class="text-2xl font-bold">MyChatApp</h2>
+  </div>
+  <div class="p-4">
+    <!-- Search Bar for Users -->
+    <input
+      type="text"
+      id="searchInput"
+      placeholder="Search users to chat"
+      class="w-full p-2 rounded-lg text-gray-700"
+      bind:value={username2}
+      on:keydown={handleKeydown}
+    />
+  </div>
+  <nav class="flex-grow overflow-y-auto">
+    <ul class="space-y-2 p-4">
+      {#each chats as chat}
+        <button 
+          class="flex items-center p-2 w-full text-left bg-blue-500 rounded-lg hover:bg-blue-400 cursor-pointer"
+          on:click={() => selectChat(chat)}
+          aria-label="Select chat with {chat.username}"
+          aria-pressed={selectedChat === chat ? 'true' : 'false'}
+        >
+          <img
+            src="../../../user-icon.svg" 
+            alt="Avatar"
+            class="w-10 h-10 rounded-full border border-gray-300 mr-3"
+          />
+          <span class="text-white">{chat.username}</span>
         </button>
-      </form>
-    </div>
-  </aside>
+      {/each}
+    </ul>
+  </nav>
+  <div class="border-t border-blue-500 p-4">
+    <button
+      class="w-full bg-gray-700 py-2 px-4 text-white rounded-lg hover:bg-gray-600 mb-2">
+      Settings
+    </button>
+    <form method="post" action="?/logout">
+      <input type="hidden" name="user_id" value={user.user_id}>
+      <button
+        type="submit"
+        class="w-full bg-red-600 py-2 px-4 text-white rounded-lg hover:bg-red-500">
+        Logout
+      </button>
+    </form>
+  </div>
+</aside>
+
+{#if mobile}
+<button
+class="lg:hidden fixed top-4 left-4 z-50 text-{sidebarOpen ? 'white' : 'blue-500'} text-3xl"
+on:click={() => sidebarOpen = !sidebarOpen}
+aria-label="Toggle sidebar"
+>
+<span class="sr-only">Toggle sidebar</span>
+☰
+</button>
+{/if}
 
   <!-- Main Content -->
-  <main class="flex-1 flex flex-col h-screen overflow-hidden p-4 lg:p-6">
+  <main class="flex-1 flex flex-col h-screen overflow-hidden p-4 lg:p-6 ml-0 lg:ml-64">
     <header class="flex items-center justify-between bg-white p-4 rounded-lg shadow shrink-0">
       <h1 class="text-xl lg:text-2xl font-bold text-gray-800">Welcome, {user.username}!</h1>
       <div class="flex items-center space-x-4">
@@ -226,6 +223,7 @@
               class="flex-1 p-2 rounded-lg border border-gray-300"
               placeholder="Type a message..."
               bind:value={newMessage}
+              on:keydown={(event: KeyboardEvent) => { if (event.key === 'Enter') sendMessage() }}
             />
             <button
               class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-500 whitespace-nowrap"

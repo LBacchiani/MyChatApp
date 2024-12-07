@@ -1,6 +1,9 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
+const RECEIVER_SERVICE = import.meta.env.VITE_RECEIVER_SERVICE;
+const PROTOCOL = import.meta.env.VITE_PROTOCOL;
+
 export const load: PageServerLoad = async ({locals: { supabase } }) => {
     const { data: authData, error: userError } = await supabase.auth.getUser();
 
@@ -29,7 +32,7 @@ export const load: PageServerLoad = async ({locals: { supabase } }) => {
       chats.push({username: loggedUserData.username, user_id: loggedUserData.user_id, chat_id: chat.id, blocked: false, messages: filteredMessages});
       usernameMap.delete(loggedUserData.user_id);
     }
-    for (let chat of chatData) {    
+    for (const chat of chatData) {    
       const filteredMessages =  messageData.filter(d => (d.sender === chat.participant1 && d.receiver === chat.participant2) || (d.sender === chat.participant2 && d.receiver === chat.participant1));
       if (usernameMap.has(chat.participant1)) chats.push({username: usernameMap.get(chat.participant1), user_id: chat.participant1, blocked: chat.blocked, messages: filteredMessages});
       else if (usernameMap.has(chat.participant2)) chats.push({username: usernameMap.get(chat.participant2), user_id: chat.participant2, blocked: chat.blocked, messages: filteredMessages});
@@ -63,21 +66,29 @@ export const actions = {
     }    
   },
 
-  logout: async ({ locals: { supabase }, request }) => {
-    const formData = new URLSearchParams(await request.text());
+  logout: async ({ request, locals: { supabase } }) => {
+    const formData = await request.formData();
     const user_id = formData.get('user_id');
-    const RECEIVER_SERVICE = import.meta.env.VITE_RECEIVER_SERVICE;
+
   
     if (user_id) {
-      await fetch(RECEIVER_SERVICE + "/close", {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json',},
-        body: JSON.stringify({user_id: user_id}),
-      });
-      supabase.auth.signOut();
+      try {
+        const response = await fetch(PROTOCOL + RECEIVER_SERVICE + "/close", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: user_id }),
+        });
+  
+        if (!response.ok) {
+          throw new Error(`Error: ${response.statusText}`);
+        }
+      } catch (error) {
+        console.log('Error during fetch:', error);
+      } 
     } else {
       console.log('No user_id provided.');
     }
-  },
-  
+    await supabase.auth.signOut();
+  }
 };
+
