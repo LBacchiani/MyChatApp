@@ -9,7 +9,7 @@
 
   function formatDate(dateString: string) {
     const date = new Date(dateString);
-    return  date.getDate() + "/" + date.getMonth() + "/" + date.getFullYear() + " | " + date.getHours() + ":" + date.getMinutes();
+    return  date.getDate() + "/" + date.getMonth() + "/" + date.getFullYear() + " | " + date.getHours() + ":" + (date.getMinutes() < 10 ? "0" + date.getMinutes() : date.getMinutes());
   }
 
   function createSocket(user_id: string): WebSocket {
@@ -89,7 +89,11 @@
   $: user = data.user;
   $: chats = data.chats;
   $: selectedChat = chats[0];
-  $: currMessages = selectedChat?.messages || [];
+  $: currMessages = selectedChat?.messages.sort((a, b) => {
+      const dateA = new Date(a.created_at);
+      const dateB = new Date(b.created_at);
+      return dateA - dateB; 
+    }) || [];
   onMount(() => {
     mobile = /Mobi|Android|iPhone|iPad|iPod/.test(navigator.userAgent);
     sidebarOpen = !mobile;
