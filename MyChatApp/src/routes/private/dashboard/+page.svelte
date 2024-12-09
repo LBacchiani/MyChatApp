@@ -17,12 +17,20 @@
     socket.onmessage = function(event) {
         const payload = JSON.parse(event.data).Payload;
         const message = JSON.parse(payload);
-        const chat = chats.filter(chat => chat.user_id === message.sender)[0];
-        const msg = { sender: message.sender, content: message.content, created_at: new Date().toISOString(), isRead: false };
-        chat.messages = [...chat.messages, msg];
-        if (chat === selectedChat) {
-          msg.isRead = true
-          currMessages = [...currMessages, msg]
+        if (message.sender) {
+          const chat = chats.filter(chat => chat.user_id === message.sender)[0];
+          const msg = { sender: message.sender, content: message.content, created_at: new Date().toISOString(), isRead: false };
+          chat.messages = [...chat.messages, msg];
+          if (chat === selectedChat) {
+            currMessages = chat.messages
+          }
+        } else {
+          const chat = chats.filter(chat => chat.user_id === message.visualiser)[0];
+          const allRead = chat.messages.map(message => ({...message, isRead: true }));
+          chat.messages = allRead;
+          if (chat === selectedChat) {
+            currMessages = chat.messages;
+          }
         }
     };
 
@@ -42,11 +50,13 @@
         method: 'POST', headers: {'Content-Type': 'application/json',},
         body: JSON.stringify({sender: user.user_id, receiver: selectedChat.user_id, content: newMessage, isRead: user.user_id === selectedChat.user_id}),
       });
-
+    
       const result = await response.json();
 
       if (result.success) {
-        currMessages = [...currMessages, { sender: user.user_id, content: newMessage, created_at: new Date().toISOString(), isRead:  user.user_id === selectedChat.user_id}];
+        const msg = { sender: user.user_id, content: newMessage, created_at: new Date().toISOString(), isRead:  user.user_id === selectedChat.user_id};
+        currMessages = [...currMessages, msg];
+        selectedChat.messages = [...selectedChat.messages, msg];
         newMessage = '';
       } else {
         alert('Message sending failed');
@@ -57,6 +67,7 @@
   }
 
   async function handleKeydown(event: KeyboardEvent): Promise<void> {
+    console.log(selectedChat.messages)
     if (event.key === 'Enter') {
       event.preventDefault(); 
       const formData = new FormData();
@@ -91,16 +102,34 @@
   const selectChat = (chat) => selectedChat = chat;
   $: user = data.user;
   $: chats = data.chats;
+  $: {
+    if (chats) {
+      chats.forEach(chat => {
+        chat.messages = chat.messages.sort((a, b) => {
+          const dateA = new Date(a.created_at);
+          const dateB = new Date(b.created_at);
+          return dateA - dateB; 
+        })
+      });
+    }
+  }
   $: selectedChat = chats[0];
-  $: currMessages = selectedChat?.messages.sort((a, b) => {
-      const dateA = new Date(a.created_at);
-      const dateB = new Date(b.created_at);
-      return dateA - dateB; 
-    }) || [];
+  $: {
+    if (currMessages) {
+      const unread = selectedChat.messages.some(msg => !msg.isRead && msg.sender == selectedChat.user_id);
+      if (unread) {
+        fetch(PROTOCOL + SENDER_SERVICE, {
+          method: 'POST', headers: {'Content-Type': 'application/json',},
+          body: JSON.stringify({receiver: selectedChat.user_id, visualiser: user.user_id}),
+        });
+      }
+    }
+  }
+  $: currMessages = selectedChat?.messages || [];
   onMount(() => {
     mobile = /Mobi|Android|iPhone|iPad|iPod/.test(navigator.userAgent);
     sidebarOpen = !mobile;
-    createSocket(user.user_id)
+    createSocket(user.user_id);
   })
 </script>
 

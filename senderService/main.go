@@ -18,15 +18,31 @@ func main() {
 
 	http.HandleFunc("/send", func(w http.ResponseWriter, r *http.Request) {
 		msg := processRequest(w, r)
-		fmt.Println("Message to be inserted:", msg)
-		_, _, err := supabase.From("Message").Insert(msg, false, "", "", "1").Execute()
-		if err != nil {
-			http.Error(w, "Error sending message: "+err.Error(), http.StatusInternalServerError)
+		push := false
+		switch m := (msg).(type) {
+		case Message:
+			fmt.Println("Message:", m)
+			_, _, err := supabase.From("Message").Insert(m, false, "", "", "1").Execute()
+			if err != nil {
+				http.Error(w, "Error sending message: "+err.Error(), http.StatusInternalServerError)
+			}
+			push = m.Receiver != m.Sender
+
+		case AckMessage:
+			fmt.Println("Ack:", m)
+			_, _, err := supabase.From("Message").Update(map[string]interface{}{"isRead": true, "sender": m.Receiver}, "", "").Eq("isRead", "false").Eq("sender", m.Receiver).Execute()
+			push = true
+			if err != nil {
+				http.Error(w, "Error updating messages: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+		default:
+			fmt.Println("Invalid message")
+			http.Error(w, "Invalid message format", http.StatusBadRequest)
 			return
 		}
-		if msg.Receiver != msg.Sender {
+		if push {
 			pushOnRedis(redis, w, msg)
-			return
 		}
 		success(w, "Message sent successfully")
 	})

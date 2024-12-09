@@ -39,7 +39,7 @@ func receiveAgent(conn *websocket.Conn, client *redis.Client, id string, ctx con
 			conn.Close()
 			return
 		}
-		fmt.Println("Received message: %s\n" + msg.Payload)
+		fmt.Println("Received message\n" + msg.Payload)
 		if err := conn.WriteJSON(msg); err != nil {
 			fmt.Println("Error writing JSON response:", err)
 			conn.Close()

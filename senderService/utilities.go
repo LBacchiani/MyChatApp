@@ -20,6 +20,11 @@ type Message struct {
 	IsRead   bool   `json:"isRead"`
 }
 
+type AckMessage struct {
+	Receiver   string `json:"receiver"`
+	Visualiser string `json:"visualiser"`
+}
+
 func connect() (*supabase.Client, *redis.Client) {
 	client, err := supabase.NewClient(os.Getenv("API_URL"), os.Getenv("API_KEY"), &supabase.ClientOptions{})
 	if err != nil {
@@ -31,7 +36,7 @@ func connect() (*supabase.Client, *redis.Client) {
 	return client, redis
 }
 
-func processRequest(w http.ResponseWriter, r *http.Request) Message {
+func processRequest(w http.ResponseWriter, r *http.Request) interface{} {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 	}
@@ -41,30 +46,48 @@ func processRequest(w http.ResponseWriter, r *http.Request) Message {
 	}
 	defer r.Body.Close()
 	var msg Message
-	if err := json.Unmarshal(body, &msg); err != nil {
-		http.Error(w, "Error parsing JSON", http.StatusBadRequest)
+	if err := json.Unmarshal(body, &msg); err == nil && msg.Sender != "" {
+		return msg
 	}
-	return msg
+	var ackMsg AckMessage
+	if err := json.Unmarshal(body, &ackMsg); err == nil {
+		return ackMsg
+	}
+
+	http.Error(w, "Invalid request body format", http.StatusBadRequest)
+	return nil
 }
 
-func pushOnRedis(client *redis.Client, w http.ResponseWriter, msg Message) {
+func pushOnRedis(client *redis.Client, w http.ResponseWriter, msg interface{}) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	msgJSON, err := json.Marshal(msg)
-	if err != nil {
-		fmt.Println("Error marshaling message:", err)
-		http.Error(w, "Invalid message format", http.StatusBadRequest)
-		return
+	var receiver string
+	var msgJSON []byte
+	var err error
+	switch m := msg.(type) {
+	case Message:
+		receiver = m.Receiver
+		msgJSON, err = json.Marshal(m)
+		if err != nil {
+			fmt.Println("Error marshaling message:", err)
+			http.Error(w, "Invalid message format", http.StatusBadRequest)
+			return
+		}
+	case AckMessage:
+		receiver = m.Receiver
+		msgJSON, err = json.Marshal(m)
+		if err != nil {
+			fmt.Println("Error marshaling message:", err)
+			http.Error(w, "Invalid message format", http.StatusBadRequest)
+			return
+		}
 	}
-
-	err = client.Publish(ctx, msg.Receiver, msgJSON).Err()
+	err = client.Publish(ctx, receiver, msgJSON).Err()
 	if err != nil {
 		fmt.Println("Error publishing to Redis:", err)
 		http.Error(w, "Error publishing message to Redis", http.StatusInternalServerError)
 		return
 	}
-	success(w, "Message sent successfully")
 }
 
 func success(w http.ResponseWriter, message string) {
