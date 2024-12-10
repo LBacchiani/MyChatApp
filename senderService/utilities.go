@@ -21,8 +21,9 @@ type Message struct {
 }
 
 type AckMessage struct {
-	Receiver   string `json:"receiver"`
-	Visualiser string `json:"visualiser"`
+	Receiver string `json:"receiver"`
+	Sender   string `json:"sender"`
+	Type     string `json:"type"`
 }
 
 func connect() (*supabase.Client, *redis.Client) {
@@ -46,7 +47,7 @@ func processRequest(w http.ResponseWriter, r *http.Request) interface{} {
 	}
 	defer r.Body.Close()
 	var msg Message
-	if err := json.Unmarshal(body, &msg); err == nil && msg.Sender != "" {
+	if err := json.Unmarshal(body, &msg); err == nil && msg.Content != "" {
 		return msg
 	}
 	var ackMsg AckMessage

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 
   const SENDER_SERVICE = import.meta.env.VITE_SENDER_SERVICE;
   const RECEIVER_SERVICE = import.meta.env.VITE_RECEIVER_SERVICE;
@@ -12,52 +12,49 @@
     return  date.getDate() + "/" + date.getMonth() + "/" + date.getFullYear() + " | " + date.getHours() + ":" + (date.getMinutes() < 10 ? "0" + date.getMinutes() : date.getMinutes());
   }
 
+  async function scrollToBottom(chatContainer: HTMLDivElement | null): Promise<void> {
+    if (chatContainer) {
+      await tick();
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+  }
+
   function createSocket(user_id: string): WebSocket {
     const socket = new WebSocket(`ws://${RECEIVER_SERVICE}/connect?user_id=${user_id}`); 
     socket.onmessage = function(event) {
         const payload = JSON.parse(event.data).Payload;
         const message = JSON.parse(payload);
-        if (message.sender) {
-          const chat = chats.filter(chat => chat.user_id === message.sender)[0];
-          const msg = { sender: message.sender, content: message.content, created_at: new Date().toISOString(), isRead: false };
-          chat.messages = [...chat.messages, msg];
-          if (chat === selectedChat) {
-            currMessages = chat.messages
-          }
-        } else {
-          const chat = chats.filter(chat => chat.user_id === message.visualiser)[0];
-          const allRead = chat.messages.map(message => ({...message, isRead: true }));
-          chat.messages = allRead;
-          if (chat === selectedChat) {
-            currMessages = chat.messages;
-          }
+        const chat = chats.filter(chat => chat.user_id === message.sender)[0];
+        let messages: any;
+        if (message.type === 'ack') messages = chat.messages.map(message => ({...message, isRead: true }));
+        else {
+          messages = [...chat.messages, { sender: message.sender, content: message.content, created_at: new Date().toISOString(), isRead: false }];
+          chat.unreadCount = chat.unreadCount + 1;
         }
+        chat.messages = messages;
+        chats = [...chats]
     };
 
     socket.onerror = async function(event) {
         alert("An error occurred...")
         goto("/private/dashboard/error")
     };
-
     return socket;
-}
+  }
 
 
   async function sendMessage() {
     if (!newMessage.trim()) return; // Prevent sending empty messages
     try {
-      const response = await fetch(PROTOCOL + SENDER_SERVICE, {
-        method: 'POST', headers: {'Content-Type': 'application/json',},
-        body: JSON.stringify({sender: user.user_id, receiver: selectedChat.user_id, content: newMessage, isRead: user.user_id === selectedChat.user_id}),
-      });
-    
+      const msg = { sender: user.user_id, receiver: chats[selectedChat].user_id, content: newMessage, isRead: user.user_id === chats[selectedChat].user_id }
+      const response = await fetch(PROTOCOL + SENDER_SERVICE, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(msg) });
       const result = await response.json();
-
       if (result.success) {
-        const msg = { sender: user.user_id, content: newMessage, created_at: new Date().toISOString(), isRead:  user.user_id === selectedChat.user_id};
-        currMessages = [...currMessages, msg];
-        selectedChat.messages = [...selectedChat.messages, msg];
+        const msg = { sender: user.user_id, content: newMessage, created_at: new Date().toISOString(), isRead: user.user_id === chats[selectedChat].user_id};
+        chats[selectedChat].messages = [...chats[selectedChat].messages, msg];
+        chats = [...chats];
         newMessage = '';
+        scrollToBottom(chatContainer);
       } else {
         alert('Message sending failed');
       }
@@ -67,7 +64,6 @@
   }
 
   async function handleKeydown(event: KeyboardEvent): Promise<void> {
-    console.log(selectedChat.messages)
     if (event.key === 'Enter') {
       event.preventDefault(); 
       const formData = new FormData();
@@ -88,8 +84,7 @@
           method: 'POST',
           body: formData,
         });   
-        await response.json();
-        chats = [...chats, {username: username2, user_id: user_id, blocked: false, messages: []}];
+        chats = [...chats, { username: username2, user_id: user_id, blocked: false, messages: [] }];
         username2 = ''
       }
     }
@@ -98,39 +93,31 @@
   let username2: string;
   let newMessage = '';
   let sidebarOpen: boolean;
-  let mobile: boolean
-  const selectChat = (chat) => selectedChat = chat;
+  let mobile: boolean;
+  let selectedChat: number = -1;
+  let chatContainer: HTMLDivElement | null = null;
+  const selectChat = (index: number) => selectedChat = index;
   $: user = data.user;
   $: chats = data.chats;
+  $: selectedChat, scrollToBottom(chatContainer);
   $: {
-    if (chats) {
-      chats.forEach(chat => {
-        chat.messages = chat.messages.sort((a, b) => {
-          const dateA = new Date(a.created_at);
-          const dateB = new Date(b.created_at);
-          return dateA - dateB; 
-        })
-      });
-    }
-  }
-  $: selectedChat = chats[0];
-  $: {
-    if (currMessages) {
-      const unread = selectedChat.messages.some(msg => !msg.isRead && msg.sender == selectedChat.user_id);
-      if (unread) {
+    if (selectedChat > -1) {
+      if (chats[selectedChat].unreadCount > 0) {
         fetch(PROTOCOL + SENDER_SERVICE, {
           method: 'POST', headers: {'Content-Type': 'application/json',},
-          body: JSON.stringify({receiver: selectedChat.user_id, visualiser: user.user_id}),
+          body: JSON.stringify({ receiver: chats[selectedChat].user_id, sender: user.user_id, type: 'ack' }),
         });
+        chats[selectedChat].unreadCount = 0;
       }
     }
   }
-  $: currMessages = selectedChat?.messages || [];
   onMount(() => {
     mobile = /Mobi|Android|iPhone|iPad|iPod/.test(navigator.userAgent);
     sidebarOpen = !mobile;
     createSocket(user.user_id);
-  })
+    scrollToBottom(chatContainer);
+    if (chats.length > 0) selectedChat = 0;
+  });
 </script>
 
 <div class="flex h-screen bg-gray-100">
@@ -155,12 +142,12 @@
     </div>
     <nav class="flex-grow overflow-y-auto">
       <ul class="space-y-2 p-4">
-        {#each chats as chat}
+        {#each chats as chat, index}
           <button 
             class="flex items-center p-2 w-full text-left bg-[rgb(131,248,174)] rounded-lg hover:bg-[#128C7E] cursor-pointer"
-            on:click={() => selectChat(chat)}
+            on:click={() => selectChat(index)}
             aria-label="Select chat with {chat.username}"
-            aria-pressed={selectedChat === chat ? 'true' : 'false'}
+            aria-pressed={selectedChat === index ? 'true' : 'false'}
           >
             <img
               src="../../../user-icon.svg" 
@@ -168,6 +155,12 @@
               class="w-10 h-10 rounded-full border border-gray-300 mr-3"
             />
             <span class="text-white">{chat.username}</span>
+            {#if chat.unreadCount > 0}
+            <span
+              class="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1">
+              {chat.unreadCount}
+            </span>
+          {/if}
           </button>
         {/each}
       </ul>
@@ -225,13 +218,13 @@
 
     <!-- Chat Conversation Section -->
     <section class="mt-4 lg:mt-6 flex-1 min-h-0 flex flex-col">
-      {#if selectedChat}
+      {#if chats[selectedChat]}
         <!-- Conversation Section -->
         <div class="bg-white p-4 rounded-lg shadow-lg flex flex-col h-full">
-          <h2 class="text-lg lg:text-xl font-bold text-[#25d366] mb-4">{selectedChat.username}</h2>
-          <div class="flex-1 min-h-0 overflow-y-auto space-y-4">
+          <h2 class="text-lg lg:text-xl font-bold text-[#25d366] mb-4">{chats[selectedChat].username}</h2>
+          <div class="flex-1 min-h-0 overflow-y-auto space-y-4" bind:this={chatContainer}>
             <!-- Display Messages -->
-            {#each currMessages as message}
+            {#each chats[selectedChat].messages as message}
               <div class="flex {message.sender === user.user_id ? 'justify-end' : 'justify-start'}">
                 <!-- Message Bubble -->
                 <div class="max-w-[75%] p-3 rounded-lg {message.sender === user.user_id ? 'bg-[#25d366] text-white' : 'bg-[#E5E5E5] text-black'}">
