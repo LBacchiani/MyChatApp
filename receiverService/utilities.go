@@ -28,29 +28,59 @@ func connect() *redis.Client {
 
 func receiveAgent(conn *websocket.Conn, client *redis.Client, id string, ctx context.Context) {
 	fmt.Println("RECEIVE AGENT FOR " + id + " STARTED")
-	channel := client.Subscribe(ctx, id)
-	defer func() {
-		_ = channel.Close()
-		_ = conn.Close()
-	}()
+	initStream(client, id, ctx)
+	defer conn.Close()
+	lastMessageID := "0"
 	for {
-		msg, err := channel.ReceiveMessage(ctx)
+		streams, err := client.XRead(ctx, &redis.XReadArgs{Streams: []string{id, lastMessageID}, Count: 1, Block: 0}).Result()
+
 		if err != nil {
-			conn.Close()
+			fmt.Println("Error reading from Redis Stream:", err)
 			return
 		}
-		fmt.Println("Received message\n" + msg.Payload)
-		if err := conn.WriteJSON(msg); err != nil {
-			fmt.Println("Error writing JSON response:", err)
-			conn.Close()
-			return
+		for _, stream := range streams {
+			for _, message := range stream.Messages {
+				for _, value := range message.Values {
+					fmt.Println("Received message\n", value)
+					lastMessageID = message.ID
+					_, err = client.XDel(ctx, id, message.ID).Result()
+					if err != nil {
+						fmt.Println("Error removing from Redis Stream:", err)
+						return
+					}
+					if value != id {
+						if err := conn.WriteJSON(value); err != nil {
+							fmt.Println("Error writing JSON response:", err)
+							return
+						}
+					}
+				}
+			}
 		}
+	}
+}
+
+func initStream(client *redis.Client, id string, ctx context.Context) {
+	_, err := client.XAdd(ctx, &redis.XAddArgs{Stream: id, Values: map[string]interface{}{"key": id}}).Result()
+	if err != nil {
+		fmt.Println("Error writing on stream id")
+	}
+}
+
+func deleteStreamOnCancel(client *redis.Client, streamID string, ctx context.Context) {
+	<-ctx.Done()
+	fmt.Println("Context canceled. Deleting stream:", streamID)
+	_, err := client.Del(ctx, streamID).Result()
+	if err != nil {
+		fmt.Println("Error deleting stream:", err)
+	} else {
+		fmt.Println("Stream deleted successfully.")
 	}
 }
 
 func success(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated) // Status 201 Created
+	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": message,

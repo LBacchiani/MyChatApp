@@ -15,6 +15,7 @@ func main() {
 		return
 	}
 	supabase, redis := connect()
+	// messageQueue :=
 
 	http.HandleFunc("/send", func(w http.ResponseWriter, r *http.Request) {
 		msg := processRequest(w, r)

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { onMount, tick } from 'svelte';
 
   const SENDER_SERVICE = import.meta.env.VITE_SENDER_SERVICE;
@@ -19,11 +18,12 @@
     }
   }
 
-  function createSocket(user_id: string): WebSocket {
-    const socket = new WebSocket(`ws://${RECEIVER_SERVICE}/connect?user_id=${user_id}`); 
+  function createSocket(user_id: string) {
+    let socket: WebSocket | null = new WebSocket(`ws://${RECEIVER_SERVICE}/connect?user_id=${user_id}`); 
     socket.onmessage = function(event) {
-        const payload = JSON.parse(event.data).Payload;
+        const payload = JSON.parse(event.data);
         const message = JSON.parse(payload);
+        console.log(event.data);
         const chat = chats.filter(chat => chat.user_id === message.sender)[0];
         let messages: any;
         if (message.type === 'ack') messages = chat.messages.map(message => ({...message, isRead: true }));
@@ -36,10 +36,13 @@
     };
 
     socket.onerror = async function(event) {
-        alert("An error occurred...")
-        goto("/private/dashboard/error")
+        if (socket) {
+          socket.close();
+          socket = null;
+        }
+        console.log("an error occurred, trying to reconnect....");
+        setTimeout(() => createSocket(user_id), 5000);
     };
-    return socket;
   }
 
 

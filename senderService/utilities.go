@@ -83,19 +83,25 @@ func pushOnRedis(client *redis.Client, w http.ResponseWriter, msg interface{}) {
 			return
 		}
 	}
-	err = client.Publish(ctx, receiver, msgJSON).Err()
+	err = client.XAdd(ctx, &redis.XAddArgs{Stream: receiver, Values: map[string]interface{}{"message": msgJSON}}).Err()
+
 	if err != nil {
-		fmt.Println("Error publishing to Redis:", err)
-		http.Error(w, "Error publishing message to Redis", http.StatusInternalServerError)
+		fmt.Println("Error publishing to Redis stream:", err)
+		http.Error(w, "Error publishing message to Redis stream", http.StatusInternalServerError)
 		return
 	}
+
 }
 
 func success(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated) // Status 201 Created
+	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": message,
 	})
+}
+
+func ackListener(client *redis.Client) {
+
 }

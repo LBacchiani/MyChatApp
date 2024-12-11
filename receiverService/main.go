@@ -11,7 +11,7 @@ import (
 	"github.com/rs/cors"
 )
 
-var mu sync.Mutex
+var cancelFuncs sync.Map
 
 func main() {
 	err := godotenv.Load(".env.local")
@@ -21,7 +21,7 @@ func main() {
 	}
 	redis := connect()
 
-	cancelFuncs := make(map[string]context.CancelFunc)
+	// cancelFuncs := make(map[string]context.CancelFunc)
 
 	http.HandleFunc("/connect", func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -36,17 +36,14 @@ func main() {
 			http.Error(w, "user_id is required", http.StatusBadRequest)
 			return
 		}
-		mu.Lock()
 		ctx, cancel := context.WithCancel(context.Background())
-		if cancelFunc, exists := cancelFuncs[userID]; exists {
-			cancelFunc()
-			delete(cancelFuncs, userID)
+		if existingCancel, exists := cancelFuncs.Load(userID); exists {
+			existingCancel.(context.CancelFunc)()
 		}
-		cancelFuncs[userID] = cancel
+		cancelFuncs.Store(userID, cancel)
 		go receiveAgent(conn, redis, userID, ctx)
-		mu.Unlock()
+		go deleteStreamOnCancel(redis, userID, ctx)
 		success(w, "Socket created successfully")
-
 	})
 
 	http.HandleFunc("/close", func(w http.ResponseWriter, r *http.Request) {
@@ -61,12 +58,10 @@ func main() {
 			http.Error(w, "user_id is required", http.StatusBadRequest)
 			return
 		}
-		mu.Lock()
-		if cancelFunc, exists := cancelFuncs[userID]; exists {
-			cancelFunc()
-			delete(cancelFuncs, userID)
+		if existingCancel, exists := cancelFuncs.Load(userID); exists {
+			existingCancel.(context.CancelFunc)()
+			cancelFuncs.Delete(userID)
 		}
-		mu.Unlock()
 		success(w, "Message sent successfully")
 		fmt.Println("Good bye")
 	})
