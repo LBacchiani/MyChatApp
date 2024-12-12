@@ -30,10 +30,8 @@ export const handle: Handle = async ({ event, resolve }) => {
     if (error) {
       return { session: null, user: null }
     }
-
     return { session, user }
   }
-
   return resolve(event, {
     filterSerializedResponseHeaders(name) {
       return name === 'content-range' || name === 'x-supabase-api-version'
